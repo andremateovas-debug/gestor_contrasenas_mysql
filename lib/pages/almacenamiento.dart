@@ -9,7 +9,7 @@ class PantallaAlmacenamiento extends StatefulWidget {
 }
 
 class _PantallaAlmacenamientoState extends State<PantallaAlmacenamiento> {
-  static const int _limiteMaximo = 200;
+  static const int _limiteMaximo = 50;
 
   final JsonService _jsonService = JsonService();
   int _cantidadActual = 0;
@@ -42,9 +42,13 @@ class _PantallaAlmacenamientoState extends State<PantallaAlmacenamiento> {
 
   @override
   Widget build(BuildContext context) {
+    final colorTexto = Theme.of(context).colorScheme.onSurface;
+
     if (_cargando) {
-      return const SafeArea(
-        child: Center(child: CircularProgressIndicator(color: Colors.white70)),
+      return SafeArea(
+        child: Center(
+          child: CircularProgressIndicator(color: colorTexto.withOpacity(0.7)),
+        ),
       );
     }
 
@@ -55,10 +59,10 @@ class _PantallaAlmacenamientoState extends State<PantallaAlmacenamiento> {
         ? Colors.redAccent
         : porcentaje >= 0.8
         ? Colors.orangeAccent
-        : Colors.white;
+        : colorTexto;
     final String textoEstado = estaLleno
         ? "Límite alcanzado"
-        : "Quedan ${_limiteMaximo - _cantidadActual} espacios disponibles";
+        : "Te quedan ${_limiteMaximo - _cantidadActual} espacios disponibles siendo un usuario gratuito.";
 
     return SafeArea(
       child: Center(
@@ -78,7 +82,7 @@ class _PantallaAlmacenamientoState extends State<PantallaAlmacenamiento> {
                   border: Border.all(
                     color: estaLleno
                         ? Colors.redAccent.withOpacity(0.45)
-                        : Colors.white.withOpacity(0.1),
+                        : colorTexto.withOpacity(0.1),
                   ),
                 ),
                 child: Icon(
@@ -88,10 +92,10 @@ class _PantallaAlmacenamientoState extends State<PantallaAlmacenamiento> {
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 "Almacenamiento",
                 style: TextStyle(
-                  color: Colors.white,
+                  color: colorTexto,
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
                 ),
@@ -111,7 +115,7 @@ class _PantallaAlmacenamientoState extends State<PantallaAlmacenamiento> {
                 child: LinearProgressIndicator(
                   value: progreso,
                   minHeight: 11,
-                  backgroundColor: Colors.white.withOpacity(0.08),
+                  backgroundColor: colorTexto.withOpacity(0.08),
                   valueColor: AlwaysStoppedAnimation<Color>(colorEstado),
                 ),
               ),
@@ -122,7 +126,7 @@ class _PantallaAlmacenamientoState extends State<PantallaAlmacenamiento> {
                 style: TextStyle(
                   color: estaLleno
                       ? Colors.redAccent
-                      : Colors.white.withOpacity(0.5),
+                      : colorTexto.withOpacity(0.5),
                   fontSize: 14,
                 ),
               ),

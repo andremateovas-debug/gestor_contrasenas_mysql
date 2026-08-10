@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'contacto.dart';
+import '../services/tema_service.dart';
 
 class PantallaConfiguracion extends StatefulWidget {
   const PantallaConfiguracion({super.key});
@@ -29,16 +31,52 @@ class _PantallaConfiguracionState extends State<PantallaConfiguracion> {
     ).showSnackBar(SnackBar(content: Text(mensaje), backgroundColor: color));
   }
 
+  void _mostrarSelectorTema() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.dark_mode_outlined),
+                title: const Text("Modo oscuro"),
+                trailing: temaApp.esOscuro ? const Icon(Icons.check) : null,
+                onTap: () {
+                  temaApp.cambiarModo(true);
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.light_mode_outlined),
+                title: const Text("Modo normal"),
+                trailing: !temaApp.esOscuro ? const Icon(Icons.check) : null,
+                onTap: () {
+                  temaApp.cambiarModo(false);
+                  Navigator.pop(context);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _tarjetaConfiguracion({
     required IconData icono,
     required String texto,
     required VoidCallback onTap,
     bool esDestructiva = false,
   }) {
-    final colorPrincipal = esDestructiva ? Colors.redAccent : Colors.white;
+    final colorTexto = Theme.of(context).colorScheme.onSurface;
+    final colorPrincipal = esDestructiva ? Colors.redAccent : colorTexto;
     final colorBorde = esDestructiva
         ? Colors.red.withOpacity(0.45)
-        : Colors.white.withOpacity(0.1);
+        : colorTexto.withOpacity(0.1);
 
     return GestureDetector(
       onTap: onTap,
@@ -48,7 +86,7 @@ class _PantallaConfiguracionState extends State<PantallaConfiguracion> {
         decoration: BoxDecoration(
           color: esDestructiva
               ? Colors.red.withOpacity(0.05)
-              : Colors.white.withOpacity(0.05),
+              : colorTexto.withOpacity(0.05),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: colorBorde),
         ),
@@ -61,7 +99,7 @@ class _PantallaConfiguracionState extends State<PantallaConfiguracion> {
                 shape: BoxShape.circle,
                 color: esDestructiva
                     ? Colors.red.withOpacity(0.12)
-                    : Colors.white.withOpacity(0.1),
+                    : colorTexto.withOpacity(0.1),
               ),
               child: Icon(icono, color: colorPrincipal, size: 20),
             ),
@@ -80,7 +118,7 @@ class _PantallaConfiguracionState extends State<PantallaConfiguracion> {
               Icons.arrow_forward_ios,
               color: esDestructiva
                   ? Colors.redAccent
-                  : Colors.white.withOpacity(0.5),
+                  : colorTexto.withOpacity(0.5),
               size: 16,
             ),
           ],
@@ -91,6 +129,8 @@ class _PantallaConfiguracionState extends State<PantallaConfiguracion> {
 
   @override
   Widget build(BuildContext context) {
+    final colorTexto = Theme.of(context).colorScheme.onSurface;
+
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
@@ -104,16 +144,12 @@ class _PantallaConfiguracionState extends State<PantallaConfiguracion> {
                 children: [
                   CircleAvatar(
                     radius: 48,
-                    backgroundColor: Colors.white.withOpacity(0.1),
+                    backgroundColor: colorTexto.withOpacity(0.1),
                     backgroundImage: _fotoPerfil == null
                         ? null
                         : FileImage(_fotoPerfil!),
                     child: _fotoPerfil == null
-                        ? const Icon(
-                            Icons.person,
-                            color: Colors.white,
-                            size: 48,
-                          )
+                        ? Icon(Icons.person, color: colorTexto, size: 48)
                         : null,
                   ),
                   Positioned(
@@ -124,14 +160,12 @@ class _PantallaConfiguracionState extends State<PantallaConfiguracion> {
                       height: 30,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.black,
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.2),
-                        ),
+                        color: Theme.of(context).scaffoldBackgroundColor,
+                        border: Border.all(color: colorTexto.withOpacity(0.2)),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.camera_alt_outlined,
-                        color: Colors.white70,
+                        color: colorTexto.withOpacity(0.7),
                         size: 17,
                       ),
                     ),
@@ -144,18 +178,18 @@ class _PantallaConfiguracionState extends State<PantallaConfiguracion> {
               children: [
                 _tarjetaConfiguracion(
                   icono: Icons.pin_outlined,
-                  texto: "Cambiar Pin",
+                  texto: "Cambiar pin de acceso",
                   onTap: () => _mostrarToast("Próximamente", Colors.white70),
                 ),
                 _tarjetaConfiguracion(
                   icono: Icons.person_outline,
-                  texto: "Cambiar nombre",
+                  texto: "Cambiar nombre de usuario",
                   onTap: () => _mostrarToast("Próximamente", Colors.white70),
                 ),
                 _tarjetaConfiguracion(
                   icono: Icons.palette_outlined,
                   texto: "Cambiar estilo de la app",
-                  onTap: () => _mostrarToast("Próximamente", Colors.white70),
+                  onTap: _mostrarSelectorTema,
                 ),
                 _tarjetaConfiguracion(
                   icono: Icons.description_outlined,
@@ -166,6 +200,18 @@ class _PantallaConfiguracionState extends State<PantallaConfiguracion> {
                   icono: Icons.privacy_tip_outlined,
                   texto: "Privacidad de usuario",
                   onTap: () => _mostrarToast("Próximamente", Colors.white70),
+                ),
+                _tarjetaConfiguracion(
+                  icono: Icons.support_agent_outlined,
+                  texto: "Soporte",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PantallaContacto(),
+                      ),
+                    );
+                  },
                 ),
                 _tarjetaConfiguracion(
                   icono: Icons.delete_forever_outlined,

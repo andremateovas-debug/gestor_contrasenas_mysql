@@ -57,6 +57,8 @@ class _BarraNavegacionState extends State<BarraNavegacion> {
 
   @override
   Widget build(BuildContext context) {
+    final colorTexto = Theme.of(context).colorScheme.onSurface;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 34), // un poco más arriba
       child: Align(
@@ -75,17 +77,19 @@ class _BarraNavegacionState extends State<BarraNavegacion> {
                   end: Alignment.bottomRight,
                   colors: [
                     Colors.grey.shade900.withOpacity(0.55),
-                    Colors.black.withOpacity(0.65),
+                    Theme.of(context).scaffoldBackgroundColor.withOpacity(0.65),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(28),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.12),
+                  color: colorTexto.withOpacity(0.12),
                   width: 1,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.4),
+                    color: Theme.of(
+                      context,
+                    ).scaffoldBackgroundColor.withOpacity(0.4),
                     blurRadius: 20,
                     offset: const Offset(0, 8),
                   ),
@@ -166,14 +170,16 @@ class _BarraNavegacionState extends State<BarraNavegacion> {
           color: esActivo ? Colors.white.withOpacity(0.14) : Colors.transparent,
           border: Border.all(
             color: esActivo
-                ? Colors.white.withOpacity(0.35)
-                : Colors.white.withOpacity(0.08),
+                ? Theme.of(context).colorScheme.onSurface.withOpacity(0.35)
+                : Theme.of(context).colorScheme.onSurface.withOpacity(0.08),
             width: 1,
           ),
         ),
         child: Icon(
           icono,
-          color: esActivo ? Colors.white : Colors.white.withOpacity(0.5),
+          color: esActivo
+              ? Theme.of(context).colorScheme.onSurface
+              : Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
           size: 24,
         ),
       ),
@@ -196,7 +202,11 @@ class _BarraNavegacionState extends State<BarraNavegacion> {
           color: Colors.red.withOpacity(0.18),
           border: Border.all(color: Colors.red.withOpacity(0.4), width: 1),
         ),
-        child: const Icon(Icons.lock_rounded, color: Colors.redAccent, size: 22),
+        child: const Icon(
+          Icons.lock_rounded,
+          color: Colors.redAccent,
+          size: 22,
+        ),
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'services/encriptacion_service.dart';
+import 'services/tema_service.dart';
 import 'pages/pantalla_de_carga.dart';
 
 void main() {
@@ -14,19 +15,35 @@ class GestorContrasenasApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Gestor de Contraseñas',
-      theme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: Colors.black,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.white,
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-      ),
-      home: const PantallaDeCarga(),
+    return AnimatedBuilder(
+      animation: temaApp,
+      builder: (context, child) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'Gestor de Contraseñas',
+          themeMode: temaApp.modo,
+          themeAnimationDuration: Duration.zero,
+          theme: ThemeData(
+            brightness: Brightness.light,
+            scaffoldBackgroundColor: Colors.white,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: Colors.black,
+              brightness: Brightness.light,
+            ),
+            useMaterial3: true,
+          ),
+          darkTheme: ThemeData(
+            brightness: Brightness.dark,
+            scaffoldBackgroundColor: Colors.black,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: Colors.white,
+              brightness: Brightness.dark,
+            ),
+            useMaterial3: true,
+          ),
+          home: const PantallaDeCarga(),
+        );
+      },
     );
   }
 }

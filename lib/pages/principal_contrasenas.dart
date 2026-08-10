@@ -462,8 +462,10 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
 
   @override
   Widget build(BuildContext context) {
+    final colorTexto = Theme.of(context).colorScheme.onSurface;
+
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -474,21 +476,17 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
                 padding: const EdgeInsets.all(20),
                 child: Row(
                   children: [
-                    const Text(
+                    Text(
                       "Mis Contraseñas",
                       style: TextStyle(
-                        color: Colors.white,
+                        color: colorTexto,
                         fontSize: 26,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     const Spacer(),
                     IconButton(
-                      icon: const Icon(
-                        Icons.add,
-                        color: Colors.white,
-                        size: 28,
-                      ),
+                      icon: Icon(Icons.add, color: colorTexto, size: 28),
                       onPressed: _mostrarFormularioAgregar,
                     ),
                   ],
@@ -500,16 +498,16 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: TextField(
                   controller: _busquedaCtrl,
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: colorTexto),
                   decoration: InputDecoration(
                     hintText: "Buscar por título o usuario...",
-                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.4)),
+                    hintStyle: TextStyle(color: colorTexto.withOpacity(0.4)),
                     prefixIcon: Icon(
                       Icons.search,
-                      color: Colors.white.withOpacity(0.5),
+                      color: colorTexto.withOpacity(0.5),
                     ),
                     filled: true,
-                    fillColor: Colors.white.withOpacity(0.05),
+                    fillColor: colorTexto.withOpacity(0.05),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
@@ -550,9 +548,11 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
   }
 
   Widget _pantallaPrincipal() {
+    final colorTexto = Theme.of(context).colorScheme.onSurface;
+
     if (_cargando) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.white70),
+      return Center(
+        child: CircularProgressIndicator(color: colorTexto.withOpacity(0.7)),
       );
     }
 
@@ -563,7 +563,7 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
               ? "No hay contraseñas guardadas\nToca + para crear una"
               : "Sin resultados",
           textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white.withOpacity(0.5)),
+          style: TextStyle(color: colorTexto.withOpacity(0.5)),
         ),
       );
     }
@@ -587,15 +587,17 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
     required String usuario,
     required VoidCallback onTap,
   }) {
+    final colorTexto = Theme.of(context).colorScheme.onSurface;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
+          color: colorTexto.withOpacity(0.05),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.1)),
+          border: Border.all(color: colorTexto.withOpacity(0.1)),
         ),
         child: Row(
           children: [
@@ -604,13 +606,9 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
               height: 40,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.1),
+                color: colorTexto.withOpacity(0.1),
               ),
-              child: const Icon(
-                Icons.lock_outline,
-                color: Colors.white,
-                size: 20,
-              ),
+              child: Icon(Icons.lock_outline, color: colorTexto, size: 20),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -619,8 +617,8 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
                 children: [
                   Text(
                     titulo,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: colorTexto,
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
@@ -629,16 +627,16 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
                   Text(
                     usuario,
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.5),
+                      color: colorTexto.withOpacity(0.5),
                       fontSize: 12,
                     ),
                   ),
                 ],
               ),
             ),
-            const Icon(
+            Icon(
               Icons.arrow_forward_ios,
-              color: Colors.white54,
+              color: colorTexto.withOpacity(0.54),
               size: 16,
             ),
           ],
