@@ -53,7 +53,7 @@ class BarraNavegacion extends StatelessWidget {
             onTap: () {
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (_) => const IngresarPin()),
+                MaterialPageRoute(builder: (_) => IngresarPin()),
               );
             },
             child: Container(

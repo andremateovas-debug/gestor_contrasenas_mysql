@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'services/encriptacion_service.dart';
 import 'pages/pantalla_de_carga.dart';
 
 void main() {
+  // PRUEBA DE CIFRADO: llamada añadida antes de iniciar la aplicación.
+  EncriptacionService.prueba();
+  EncriptacionService.mostrarDatosCifrado();
   runApp(const GestorContrasenasApp());
 }
 
