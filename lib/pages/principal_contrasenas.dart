@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/json_service.dart';
 import '../widgets/botones.dart';
+import 'almacenamiento.dart';
+import 'configuracion.dart';
 
 class PrincipalContrasenas extends StatefulWidget {
   const PrincipalContrasenas({super.key});
@@ -48,9 +50,15 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
     } else {
       setState(() {
         _filtradas = _contrasenas
-            .where((item) =>
-                (item["titulo"] ?? "").toString().toLowerCase().contains(query) ||
-                (item["usuario"] ?? "").toString().toLowerCase().contains(query))
+            .where(
+              (item) =>
+                  (item["titulo"] ?? "").toString().toLowerCase().contains(
+                    query,
+                  ) ||
+                  (item["usuario"] ?? "").toString().toLowerCase().contains(
+                    query,
+                  ),
+            )
             .toList();
       });
     }
@@ -91,9 +99,17 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
                       ),
                     ),
                     const SizedBox(height: 20),
-                    _campoTexto(tituloCtrl, "Título (ej. Facebook)", Icons.title),
+                    _campoTexto(
+                      tituloCtrl,
+                      "Título (ej. Facebook)",
+                      Icons.title,
+                    ),
                     const SizedBox(height: 12),
-                    _campoTexto(usuarioCtrl, "Usuario o Email", Icons.person_outline),
+                    _campoTexto(
+                      usuarioCtrl,
+                      "Usuario o Email",
+                      Icons.person_outline,
+                    ),
                     const SizedBox(height: 12),
                     // Campo de contraseña con toggle
                     TextField(
@@ -102,14 +118,23 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
                         hintText: "Contraseña",
-                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.4)),
-                        prefixIcon: Icon(Icons.key_outlined, color: Colors.white.withOpacity(0.5)),
+                        hintStyle: TextStyle(
+                          color: Colors.white.withOpacity(0.4),
+                        ),
+                        prefixIcon: Icon(
+                          Icons.key_outlined,
+                          color: Colors.white.withOpacity(0.5),
+                        ),
                         suffixIcon: IconButton(
                           icon: Icon(
-                            verContrasena ? Icons.visibility : Icons.visibility_off,
+                            verContrasena
+                                ? Icons.visibility
+                                : Icons.visibility_off,
                             color: Colors.white.withOpacity(0.5),
                           ),
-                          onPressed: () => setModalState(() => verContrasena = !verContrasena),
+                          onPressed: () => setModalState(
+                            () => verContrasena = !verContrasena,
+                          ),
                         ),
                         filled: true,
                         fillColor: Colors.white.withOpacity(0.05),
@@ -120,7 +145,11 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    _campoTexto(sitioWebCtrl, "Sitio web (Opcional)", Icons.public),
+                    _campoTexto(
+                      sitioWebCtrl,
+                      "Sitio web (Opcional)",
+                      Icons.public,
+                    ),
                     const SizedBox(height: 20),
                     SizedBox(
                       width: double.infinity,
@@ -129,14 +158,18 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white.withOpacity(0.1),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                         onPressed: () async {
                           if (tituloCtrl.text.isEmpty ||
                               contrasenaCtrl.text.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                  content: Text("Título y contraseña son requeridos")),
+                                content: Text(
+                                  "Título y contraseña son requeridos",
+                                ),
+                              ),
                             );
                             return;
                           }
@@ -155,8 +188,9 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
                             Navigator.pop(context);
                             // FINALMENTE mostrar toast
                             _mostrarToast(
-                                "Contraseña guardada con encriptación ✅",
-                                Colors.green);
+                              "Contraseña guardada con encriptación ✅",
+                              Colors.green,
+                            );
                           }
                         },
                         child: const Text(
@@ -186,8 +220,7 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
     final tituloCtrl = TextEditingController(text: contra["titulo"]);
     final usuarioCtrl = TextEditingController(text: contra["usuario"]);
     final contrasenaCtrl = TextEditingController(text: contra["contrasena"]);
-    final sitioWebCtrl =
-        TextEditingController(text: contra["sitio_web"] ?? "");
+    final sitioWebCtrl = TextEditingController(text: contra["sitio_web"] ?? "");
 
     showModalBottomSheet(
       context: context,
@@ -225,11 +258,12 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.delete_outline,
-                              color: Colors.redAccent),
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            color: Colors.redAccent,
+                          ),
                           onPressed: () async {
-                            bool exito =
-                                await _jsonService.eliminarContrasena(
+                            bool exito = await _jsonService.eliminarContrasena(
                               titulo: contra["titulo"],
                               usuario: contra["usuario"],
                             );
@@ -245,18 +279,18 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
                     ),
                     const SizedBox(height: 20),
                     if (editando) ...[
-                      _campoTexto(
-                          tituloCtrl, "Título", Icons.title),
+                      _campoTexto(tituloCtrl, "Título", Icons.title),
+                      const SizedBox(height: 12),
+                      _campoTexto(usuarioCtrl, "Usuario", Icons.person_outline),
                       const SizedBox(height: 12),
                       _campoTexto(
-                          usuarioCtrl, "Usuario", Icons.person_outline),
+                        contrasenaCtrl,
+                        "Contraseña",
+                        Icons.key_outlined,
+                        obscureText: true,
+                      ),
                       const SizedBox(height: 12),
-                      _campoTexto(contrasenaCtrl, "Contraseña",
-                          Icons.key_outlined,
-                          obscureText: true),
-                      const SizedBox(height: 12),
-                      _campoTexto(
-                          sitioWebCtrl, "Sitio web", Icons.public),
+                      _campoTexto(sitioWebCtrl, "Sitio web", Icons.public),
                       const SizedBox(height: 20),
                       SizedBox(
                         width: double.infinity,
@@ -266,21 +300,20 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
                             backgroundColor: Colors.white.withOpacity(0.1),
                           ),
                           onPressed: () async {
-                            bool exito =
-                                await _jsonService.actualizarContrasena(
-                              tituloViejo: contra["titulo"],
-                              usuarioViejo: contra["usuario"],
-                              tituloNuevo: tituloCtrl.text,
-                              usuarioNuevo: usuarioCtrl.text,
-                              contrasena: contrasenaCtrl.text,
-                              sitioWeb: sitioWebCtrl.text,
-                            );
+                            bool exito = await _jsonService
+                                .actualizarContrasena(
+                                  tituloViejo: contra["titulo"],
+                                  usuarioViejo: contra["usuario"],
+                                  tituloNuevo: tituloCtrl.text,
+                                  usuarioNuevo: usuarioCtrl.text,
+                                  contrasena: contrasenaCtrl.text,
+                                  sitioWeb: sitioWebCtrl.text,
+                                );
 
                             if (exito && mounted) {
                               Navigator.pop(context);
                               await _cargarContrasenas();
-                              _mostrarToast(
-                                  "Actualizada ✅", Colors.green);
+                              _mostrarToast("Actualizada ✅", Colors.green);
                             }
                           },
                           child: const Text(
@@ -291,7 +324,9 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
                       ),
                     ] else ...[
                       _detalleItem(
-                          "Usuario", contra["usuario"] ?? "No definido"),
+                        "Usuario",
+                        contra["usuario"] ?? "No definido",
+                      ),
                       const SizedBox(height: 12),
                       Row(
                         children: [
@@ -311,19 +346,19 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
                               color: Colors.white.withOpacity(0.5),
                             ),
                             onPressed: () => setModalState(
-                                () => obscurePassword = !obscurePassword),
+                              () => obscurePassword = !obscurePassword,
+                            ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.copy,
-                                color: Colors.white70),
+                            icon: const Icon(Icons.copy, color: Colors.white70),
                             onPressed: () {
                               Clipboard.setData(
-                                ClipboardData(
-                                    text: contra["contrasena"]),
+                                ClipboardData(text: contra["contrasena"]),
                               );
                               _mostrarToast(
-                                  "Copiada al portapapeles ✅",
-                                  Colors.green);
+                                "Copiada al portapapeles ✅",
+                                Colors.green,
+                              );
                             },
                           ),
                         ],
@@ -341,8 +376,7 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white.withOpacity(0.1),
                           ),
-                          onPressed: () =>
-                              setModalState(() => editando = true),
+                          onPressed: () => setModalState(() => editando = true),
                           child: const Text(
                             "Editar",
                             style: TextStyle(color: Colors.white),
@@ -360,8 +394,12 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
     );
   }
 
-  Widget _campoTexto(TextEditingController ctrl, String hint, IconData icon,
-      {bool obscureText = false}) {
+  Widget _campoTexto(
+    TextEditingController ctrl,
+    String hint,
+    IconData icon, {
+    bool obscureText = false,
+  }) {
     return TextField(
       controller: ctrl,
       obscureText: obscureText,
@@ -430,55 +468,60 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
         bottom: false,
         child: Column(
           children: [
-            // Encabezado
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  const Text(
-                    "Mis Contraseñas",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
+            if (_paginaActual != 1 && _paginaActual != 2) ...[
+              // Encabezado
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    const Text(
+                      "Mis Contraseñas",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.add, color: Colors.white, size: 28),
-                    onPressed: _mostrarFormularioAgregar,
-                  ),
-                ],
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.add,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                      onPressed: _mostrarFormularioAgregar,
+                    ),
+                  ],
+                ),
               ),
-            ),
 
-            // Buscador
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: TextField(
-                controller: _busquedaCtrl,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: "Buscar por título o usuario...",
-                  hintStyle:
-                      TextStyle(color: Colors.white.withOpacity(0.4)),
-                  prefixIcon: Icon(Icons.search,
-                      color: Colors.white.withOpacity(0.5)),
-                  filled: true,
-                  fillColor: Colors.white.withOpacity(0.05),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+              // Buscador
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: TextField(
+                  controller: _busquedaCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: "Buscar por título o usuario...",
+                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.4)),
+                    prefixIcon: Icon(
+                      Icons.search,
+                      color: Colors.white.withOpacity(0.5),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.05),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
+            ],
 
             // Contenido
-            Expanded(
-              child: _construirContenido(),
-            ),
+            Expanded(child: _construirContenido()),
 
             // Barra de navegación
             BarraNavegacion(
@@ -498,9 +541,9 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
       case 0:
         return _pantallaPrincipal();
       case 1:
-        return _pantallaAlmacenamiento();
+        return const PantallaAlmacenamiento();
       case 2:
-        return _pantallaConfiguracion();
+        return const PantallaConfiguracion();
       default:
         return _pantallaPrincipal();
     }
@@ -599,32 +642,6 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
               size: 16,
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _pantallaAlmacenamiento() {
-    return Center(
-      child: Text(
-        "📦 Almacenamiento\n(Próximamente)",
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          color: Colors.white.withOpacity(0.5),
-          fontSize: 16,
-        ),
-      ),
-    );
-  }
-
-  Widget _pantallaConfiguracion() {
-    return Center(
-      child: Text(
-        "⚙️ Configuración\n(Próximamente)",
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          color: Colors.white.withOpacity(0.5),
-          fontSize: 16,
         ),
       ),
     );
