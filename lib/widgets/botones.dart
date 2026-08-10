@@ -1,7 +1,9 @@
+import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:gestor_contrasenas_mysql/pages/ingresar_pin.dart';
 
-class BarraNavegacion extends StatelessWidget {
+class BarraNavegacion extends StatefulWidget {
   final int indexActual;
   final Function(int) onSeleccionar;
 
@@ -12,86 +14,161 @@ class BarraNavegacion extends StatelessWidget {
   });
 
   @override
+  State<BarraNavegacion> createState() => _BarraNavegacionState();
+}
+
+class _BarraNavegacionState extends State<BarraNavegacion> {
+  bool _expandida = false;
+  Timer? _timerColapso;
+
+  final List<IconData> _iconos = [
+    Icons.home_rounded,
+    Icons.storage_rounded,
+    Icons.settings_rounded,
+  ];
+
+  @override
+  void dispose() {
+    _timerColapso?.cancel();
+    super.dispose();
+  }
+
+  void _alternarExpansion() {
+    setState(() => _expandida = !_expandida);
+    if (_expandida) {
+      _reiniciarTimer();
+    } else {
+      _timerColapso?.cancel();
+    }
+  }
+
+  void _reiniciarTimer() {
+    _timerColapso?.cancel();
+    _timerColapso = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _expandida = false);
+    });
+  }
+
+  void _seleccionar(int indice) {
+    widget.onSeleccionar(indice);
+    // cada vez que elige algo, reinicia los 3 segundos antes de colapsar
+    _reiniciarTimer();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.black,
-        border: Border(
-          top: BorderSide(color: Colors.white.withOpacity(0.1), width: 1),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          // Botón Home
-          _botonNav(
-            icono: Icons.home,
-            indice: 0,
-            esActivo: indexActual == 0,
-            onTap: () => onSeleccionar(0),
-          ),
-
-          // Botón Almacenamiento
-          _botonNav(
-            icono: Icons.storage,
-            indice: 1,
-            esActivo: indexActual == 1,
-            onTap: () => onSeleccionar(1),
-          ),
-
-          // Botón Configuración
-          _botonNav(
-            icono: Icons.settings,
-            indice: 2,
-            esActivo: indexActual == 2,
-            onTap: () => onSeleccionar(2),
-          ),
-
-          // Botón Salir (Bloquear)
-          GestureDetector(
-            onTap: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => IngresarPin()),
-              );
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 34), // un poco más arriba
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeOutCubic,
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.red.withOpacity(0.5)),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.grey.shade900.withOpacity(0.55),
+                    Colors.black.withOpacity(0.65),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.12),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.4),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
               ),
-              child: const Icon(
-                Icons.lock,
-                color: Colors.red,
-                size: 24,
+              child: AnimatedSize(
+                duration: const Duration(milliseconds: 280),
+                curve: Curves.easeOutCubic,
+                child: _expandida ? _vistaExpandida() : _vistaColapsada(),
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _botonNav({
+  // Solo el botón activo + flecha
+  Widget _vistaColapsada() {
+    return Row(
+      key: const ValueKey('colapsada'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _botonCirculo(
+          icono: _iconos[widget.indexActual],
+          esActivo: true,
+          onTap: _alternarExpansion,
+        ),
+        const SizedBox(width: 8),
+        _botonCirculo(
+          icono: Icons.keyboard_arrow_up_rounded,
+          esActivo: false,
+          onTap: _alternarExpansion,
+        ),
+      ],
+    );
+  }
+
+  // Todos los botones
+  Widget _vistaExpandida() {
+    return Row(
+      key: const ValueKey('expandida'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (int i = 0; i < _iconos.length; i++) ...[
+          _botonCirculo(
+            icono: _iconos[i],
+            esActivo: widget.indexActual == i,
+            onTap: () => _seleccionar(i),
+          ),
+          const SizedBox(width: 6),
+        ],
+        _botonCirculo(
+          icono: Icons.keyboard_arrow_down_rounded,
+          esActivo: false,
+          onTap: _alternarExpansion,
+        ),
+        const SizedBox(width: 6),
+        _botonSalir(context),
+      ],
+    );
+  }
+
+  Widget _botonCirculo({
     required IconData icono,
-    required int indice,
     required bool esActivo,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        width: 52,
+        height: 52,
         decoration: BoxDecoration(
-          color: esActivo ? Colors.white.withOpacity(0.1) : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
+          shape: BoxShape.circle,
+          color: esActivo ? Colors.white.withOpacity(0.14) : Colors.transparent,
           border: Border.all(
             color: esActivo
-                ? Colors.white.withOpacity(0.3)
-                : Colors.transparent,
+                ? Colors.white.withOpacity(0.35)
+                : Colors.white.withOpacity(0.08),
+            width: 1,
           ),
         ),
         child: Icon(
@@ -99,6 +176,27 @@ class BarraNavegacion extends StatelessWidget {
           color: esActivo ? Colors.white : Colors.white.withOpacity(0.5),
           size: 24,
         ),
+      ),
+    );
+  }
+
+  Widget _botonSalir(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => IngresarPin()),
+        );
+      },
+      child: Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.red.withOpacity(0.18),
+          border: Border.all(color: Colors.red.withOpacity(0.4), width: 1),
+        ),
+        child: const Icon(Icons.lock_rounded, color: Colors.redAccent, size: 22),
       ),
     );
   }
