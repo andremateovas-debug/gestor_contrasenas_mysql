@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:async';
+import 'dart:developer' as developer;
+import 'dart:io';
+import '../services/encriptacion_service.dart';
+import '../services/identidad_service.dart';
 import '../services/json_service.dart';
+import '../services/mysql_service.dart';
+import '../services/sesion_service.dart';
 import '../widgets/botones.dart';
 import 'almacenamiento.dart';
 import 'configuracion.dart';
+import 'ingresar_pin.dart';
 
 class PrincipalContrasenas extends StatefulWidget {
   const PrincipalContrasenas({super.key});
@@ -19,17 +27,41 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
   bool _cargando = true;
   final TextEditingController _busquedaCtrl = TextEditingController();
   final JsonService _jsonService = JsonService();
+  final IdentidadService _identidadService = IdentidadService();
+  final MysqlService _mysqlService = MysqlService();
+  static const int _limiteAlmacenamiento = 50;
 
   @override
   void initState() {
     super.initState();
-    _cargarContrasenas();
+    if (SesionService.autenticada) {
+      _cargarContrasenas();
+    } else {
+      final sesionExpirada = SesionService.consumirAvisoSesionExpirada();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => IngresarPin(
+              mensajeInicial: sesionExpirada
+                  ? 'Tu sesión expiró. Vuelve a ingresar tu PIN.'
+                  : null,
+            ),
+          ),
+        );
+      });
+    }
     _busquedaCtrl.addListener(_filtrar);
   }
 
   @override
   void dispose() {
     _busquedaCtrl.dispose();
+    _contrasenas.clear();
+    _filtradas.clear();
+    EncriptacionService.limpiarClaveMaestra();
+    SesionService.cerrar();
     super.dispose();
   }
 
@@ -64,14 +96,130 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
     }
   }
 
-  void _mostrarFormularioAgregar() {
+  Future<bool> _comprobarEspacioDisponible() async {
+    final contrasenas = await _jsonService.leerContrasenas();
+
+    if (contrasenas.length >= _limiteAlmacenamiento) {
+      if (mounted) {
+        setState(() => _paginaActual = 1);
+        _mostrarToast(
+          "Límite de $_limiteAlmacenamiento contraseñas alcanzado",
+          Colors.redAccent,
+        );
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<void> _sincronizarContrasena(Map<String, dynamic> contrasena) async {
+    try {
+      final propietario = await _identidadService.obtenerId();
+      if (propietario == null || propietario.isEmpty) return;
+
+      final datosCifrados = EncriptacionService.encriptarJson([contrasena]);
+      final sincronizada = await _mysqlService.subirContrasena(
+        propietario: propietario,
+        datosCifrados: datosCifrados,
+      );
+      if (!sincronizada) {
+        developer.log(
+          'El servidor no confirmó la subida de una contraseña.',
+          name: 'sincronizacion',
+        );
+      }
+    } on SocketException {
+      return;
+    } on TimeoutException {
+      return;
+    } catch (error) {
+      developer.log(
+        'Error al subir una contraseña.',
+        name: 'sincronizacion',
+        error: error.runtimeType,
+      );
+    }
+  }
+
+  Future<void> _sincronizarActualizacion(
+    Map<String, dynamic> contra,
+    Map<String, dynamic> datosNuevos,
+  ) async {
+    final id = contra['id'];
+    if (id is! int) return;
+
+    try {
+      final propietario = await _identidadService.obtenerId();
+      if (propietario == null || propietario.isEmpty) return;
+
+      final datosCifrados = EncriptacionService.encriptarJson([datosNuevos]);
+      final actualizada = await _mysqlService.actualizarContrasena(
+        propietario: propietario,
+        id: id,
+        nuevoDatosCifrados: datosCifrados,
+      );
+      if (!actualizada) {
+        developer.log(
+          'El servidor no confirmó la actualización de una contraseña.',
+          name: 'sincronizacion',
+        );
+      }
+    } on SocketException {
+      return;
+    } on TimeoutException {
+      return;
+    } catch (error) {
+      developer.log(
+        'Error al actualizar una contraseña.',
+        name: 'sincronizacion',
+        error: error.runtimeType,
+      );
+    }
+  }
+
+  Future<void> _sincronizarEliminacion(Map<String, dynamic> contra) async {
+    final id = contra['id'];
+    if (id is! int) return;
+
+    try {
+      final propietario = await _identidadService.obtenerId();
+      if (propietario == null || propietario.isEmpty) return;
+
+      final eliminada = await _mysqlService.eliminarContrasena(
+        propietario: propietario,
+        id: id,
+      );
+      if (!eliminada) {
+        developer.log(
+          'El servidor no confirmó la eliminación de una contraseña.',
+          name: 'sincronizacion',
+        );
+      }
+    } on SocketException {
+      return;
+    } on TimeoutException {
+      return;
+    } catch (error) {
+      developer.log(
+        'Error al eliminar una contraseña.',
+        name: 'sincronizacion',
+        error: error.runtimeType,
+      );
+    }
+  }
+
+  Future<void> _mostrarFormularioAgregar() async {
+    if (!await _comprobarEspacioDisponible() || !mounted) return;
+
+    final contextPantalla = context;
     final tituloCtrl = TextEditingController();
     final usuarioCtrl = TextEditingController();
     final contrasenaCtrl = TextEditingController();
     final sitioWebCtrl = TextEditingController();
     bool verContrasena = false;
 
-    showModalBottomSheet(
+    await showModalBottomSheet(
       context: context,
       backgroundColor: Colors.black87,
       isScrollControlled: true,
@@ -162,6 +310,11 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
                           ),
                         ),
                         onPressed: () async {
+                          if (!await _comprobarEspacioDisponible()) {
+                            if (context.mounted) Navigator.pop(context);
+                            return;
+                          }
+
                           if (tituloCtrl.text.isEmpty ||
                               contrasenaCtrl.text.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -182,15 +335,31 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
                           );
 
                           if (exito && mounted) {
-                            // Recargar PRIMERO
-                            await _cargarContrasenas();
-                            // LUEGO cerrar modal
-                            Navigator.pop(context);
-                            // FINALMENTE mostrar toast
-                            _mostrarToast(
-                              "Contraseña guardada con encriptación ✅",
-                              Colors.green,
+                            unawaited(
+                              _sincronizarContrasena({
+                                "titulo": tituloCtrl.text,
+                                "usuario": usuarioCtrl.text,
+                                "contrasena": contrasenaCtrl.text,
+                                "sitio_web": sitioWebCtrl.text,
+                              }),
                             );
+                            // Cerrar el modal PRIMERO
+                            if (context.mounted) Navigator.pop(context);
+                            // Recargar y mostrar toast en el SIGUIENTE frame,
+                            // cuando el modal ya terminó de desmontarse
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (!mounted) return;
+                              _cargarContrasenas();
+                              ScaffoldMessenger.of(contextPantalla).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    "Contraseña guardada con encriptación ✅",
+                                  ),
+                                  backgroundColor: Colors.green,
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            });
                           }
                         },
                         child: const Text(
@@ -211,18 +380,23 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
         );
       },
     );
+    tituloCtrl.dispose();
+    usuarioCtrl.dispose();
+    contrasenaCtrl.dispose();
+    sitioWebCtrl.dispose();
   }
 
-  void _mostrarDetalles(Map<String, dynamic> contra) {
+  Future<void> _mostrarDetalles(Map<String, dynamic> contra) async {
     bool obscurePassword = true;
     bool editando = false;
 
+    final contextPantalla = context;
     final tituloCtrl = TextEditingController(text: contra["titulo"]);
     final usuarioCtrl = TextEditingController(text: contra["usuario"]);
     final contrasenaCtrl = TextEditingController(text: contra["contrasena"]);
     final sitioWebCtrl = TextEditingController(text: contra["sitio_web"] ?? "");
 
-    showModalBottomSheet(
+    await showModalBottomSheet(
       context: context,
       backgroundColor: Colors.black87,
       isScrollControlled: true,
@@ -269,9 +443,23 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
                             );
 
                             if (exito && mounted) {
-                              Navigator.pop(context);
-                              await _cargarContrasenas();
-                              _mostrarToast("Eliminada 🗑️", Colors.red);
+                              unawaited(_sincronizarEliminacion(contra));
+                              if (context.mounted) Navigator.pop(context);
+                              // Recargar y mostrar toast en el SIGUIENTE
+                              // frame, cuando el modal ya se desmontó
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (!mounted) return;
+                                _cargarContrasenas();
+                                ScaffoldMessenger.of(
+                                  contextPantalla,
+                                ).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("Eliminada 🗑️"),
+                                    backgroundColor: Colors.red,
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              });
                             }
                           },
                         ),
@@ -311,9 +499,35 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
                                 );
 
                             if (exito && mounted) {
-                              Navigator.pop(context);
-                              await _cargarContrasenas();
-                              _mostrarToast("Actualizada ✅", Colors.green);
+                              unawaited(
+                                _sincronizarActualizacion(contra, {
+                                  "titulo": tituloCtrl.text,
+                                  "usuario": usuarioCtrl.text,
+                                  "contrasena": contrasenaCtrl.text,
+                                  "sitio_web": sitioWebCtrl.text,
+                                  "fecha_creacion":
+                                      contra["fecha_creacion"] ??
+                                      DateTime.now().toIso8601String(),
+                                  "fecha_actualizacion": DateTime.now()
+                                      .toIso8601String(),
+                                }),
+                              );
+                              if (context.mounted) Navigator.pop(context);
+                              // Recargar y mostrar toast en el SIGUIENTE
+                              // frame, cuando el modal ya se desmontó
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (!mounted) return;
+                                _cargarContrasenas();
+                                ScaffoldMessenger.of(
+                                  contextPantalla,
+                                ).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("Actualizada ✅"),
+                                    backgroundColor: Colors.green,
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              });
                             }
                           },
                           child: const Text(
@@ -392,6 +606,10 @@ class _PrincipalContrasenasState extends State<PrincipalContrasenas> {
         );
       },
     );
+    tituloCtrl.dispose();
+    usuarioCtrl.dispose();
+    contrasenaCtrl.dispose();
+    sitioWebCtrl.dispose();
   }
 
   Widget _campoTexto(

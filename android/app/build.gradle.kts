@@ -4,6 +4,10 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+dependencies {
+    implementation("androidx.biometric:biometric:1.1.0")
+}
+
 android {
     namespace = "com.example.gestor_contrasenas_mysql"
     compileSdk = flutter.compileSdkVersion

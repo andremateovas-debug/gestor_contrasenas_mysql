@@ -1,10 +1,18 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
+import '../services/encriptacion_service.dart';
+import '../services/identidad_service.dart';
+import '../services/mysql_service.dart';
+import '../services/sesion_service.dart';
 import 'principal_contrasenas.dart';
 
 class IngresarPin extends StatefulWidget {
-  const IngresarPin({super.key});
+  final String? mensajeInicial;
+
+  const IngresarPin({super.key, this.mensajeInicial});
 
   @override
   State<IngresarPin> createState() => _IngresarPinState();
@@ -13,11 +21,26 @@ class IngresarPin extends StatefulWidget {
 class _IngresarPinState extends State<IngresarPin>
     with SingleTickerProviderStateMixin {
   String _pinIngresado = "";
+  int _intentosFallidos = 0;
+  int _nivelBloqueo = 0;
+  int _segundosBloqueo = 0;
+  DateTime? _bloqueadoHasta;
+  Timer? _timerBloqueo;
+  bool _verificandoPin = false;
+  bool _estadoBloqueoCargado = false;
+  bool _falloCargaBloqueo = false;
 
-  final String _pinCorrecto = "091026";
+  static const String _claveIntentosFallidos = 'pinIntentosFallidos';
+  static const String _claveNivelBloqueo = 'pinNivelBloqueo';
+  static const String _claveBloqueadoHasta = 'pinBloqueadoHasta';
+
   final int _longitudPin = 6;
 
   final LocalAuthentication _auth = LocalAuthentication();
+  final IdentidadService _identidadService = IdentidadService();
+  final MysqlService _mysqlService = MysqlService();
+  final FlutterSecureStorage _almacenamientoSeguro =
+      const FlutterSecureStorage();
 
   bool _tieneReconocimientoFacial = false;
   bool _cargandoBiometria = true;
@@ -51,13 +74,146 @@ class _IngresarPinState extends State<IngresarPin>
           }
         });
 
+    _cargarEstadoBloqueo();
     _comprobarBiometria();
+    if (widget.mensajeInicial != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(widget.mensajeInicial!)));
+      });
+    }
   }
 
   @override
   void dispose() {
+    _timerBloqueo?.cancel();
     _shakeController.dispose();
     super.dispose();
+  }
+
+  bool get _estaBloqueado =>
+      _falloCargaBloqueo ||
+      (_bloqueadoHasta != null && _bloqueadoHasta!.isAfter(DateTime.now()));
+
+  Future<void> _cargarEstadoBloqueo() async {
+    if (mounted) {
+      setState(() {
+        _estadoBloqueoCargado = false;
+        _falloCargaBloqueo = false;
+      });
+    }
+
+    try {
+      final intentos = await _almacenamientoSeguro.read(
+        key: _claveIntentosFallidos,
+      );
+      final nivel = await _almacenamientoSeguro.read(key: _claveNivelBloqueo);
+      final bloqueadoHasta = await _almacenamientoSeguro.read(
+        key: _claveBloqueadoHasta,
+      );
+
+      final nuevosIntentos = int.tryParse(intentos ?? '') ?? 0;
+      final nuevoNivel = int.tryParse(nivel ?? '') ?? 0;
+      final timestamp = int.tryParse(bloqueadoHasta ?? '');
+      final nuevaFechaBloqueo = timestamp == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(timestamp);
+
+      if (nuevaFechaBloqueo != null &&
+          !nuevaFechaBloqueo.isAfter(DateTime.now())) {
+        await _almacenamientoSeguro.delete(key: _claveBloqueadoHasta);
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _intentosFallidos = nuevosIntentos;
+        _nivelBloqueo = nuevoNivel;
+        _bloqueadoHasta = nuevaFechaBloqueo?.isAfter(DateTime.now()) == true
+            ? nuevaFechaBloqueo
+            : null;
+        _falloCargaBloqueo = false;
+        _estadoBloqueoCargado = true;
+      });
+
+      if (_estaBloqueado) _iniciarCuentaRegresiva();
+    } catch (error) {
+      debugPrint(
+        'No se pudo cargar el estado de bloqueo: ${error.runtimeType}',
+      );
+      if (!mounted) return;
+      setState(() {
+        _falloCargaBloqueo = true;
+        _estadoBloqueoCargado = true;
+        _segundosBloqueo = 0;
+      });
+    }
+  }
+
+  void _iniciarCuentaRegresiva() {
+    _timerBloqueo?.cancel();
+
+    void actualizar() {
+      final hasta = _bloqueadoHasta;
+      if (hasta == null) return;
+      final segundos = (hasta.difference(DateTime.now()).inMilliseconds / 1000)
+          .ceil();
+
+      if (segundos <= 0) {
+        _timerBloqueo?.cancel();
+        _bloqueadoHasta = null;
+        if (mounted) {
+          setState(() => _segundosBloqueo = 0);
+        }
+        _almacenamientoSeguro.delete(key: _claveBloqueadoHasta);
+        return;
+      }
+
+      if (mounted) {
+        setState(() => _segundosBloqueo = segundos);
+      }
+    }
+
+    actualizar();
+    _timerBloqueo = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => actualizar(),
+    );
+  }
+
+  Future<void> _registrarIntentoFallido() async {
+    _intentosFallidos++;
+    if (_intentosFallidos < 5) {
+      await _almacenamientoSeguro.write(
+        key: _claveIntentosFallidos,
+        value: '$_intentosFallidos',
+      );
+      return;
+    }
+
+    final minutos = math.min(15, 1 << _nivelBloqueo);
+    _nivelBloqueo++;
+    _intentosFallidos = 0;
+    _bloqueadoHasta = DateTime.now().add(Duration(minutes: minutos));
+    await _almacenamientoSeguro.write(key: _claveIntentosFallidos, value: '0');
+    await _almacenamientoSeguro.write(
+      key: _claveNivelBloqueo,
+      value: '$_nivelBloqueo',
+    );
+    await _almacenamientoSeguro.write(
+      key: _claveBloqueadoHasta,
+      value: '${_bloqueadoHasta!.millisecondsSinceEpoch}',
+    );
+    _iniciarCuentaRegresiva();
+  }
+
+  Future<void> _restablecerIntentos() async {
+    _intentosFallidos = 0;
+    _nivelBloqueo = 0;
+    await _almacenamientoSeguro.delete(key: _claveIntentosFallidos);
+    await _almacenamientoSeguro.delete(key: _claveNivelBloqueo);
+    await _almacenamientoSeguro.delete(key: _claveBloqueadoHasta);
   }
 
   // ============================================================
@@ -83,8 +239,6 @@ class _IngresarPinState extends State<IngresarPin>
       final List<BiometricType> biometriaDisponible = await _auth
           .getAvailableBiometrics();
 
-      debugPrint("Biometría disponible: $biometriaDisponible");
-
       final bool tieneBiometria = biometriaDisponible.isNotEmpty;
 
       IconData icono = Icons.fingerprint;
@@ -108,9 +262,7 @@ class _IngresarPinState extends State<IngresarPin>
           _cargandoBiometria = false;
         });
       }
-    } catch (e) {
-      debugPrint("Error comprobando biometría: $e");
-
+    } catch (_) {
       if (mounted) {
         setState(() {
           _tieneReconocimientoFacial = false;
@@ -125,25 +277,50 @@ class _IngresarPinState extends State<IngresarPin>
   // ============================================================
 
   Future<void> _autenticarConRostro() async {
-    try {
-      final bool autenticado = await _auth.authenticate(
-        localizedReason:
-            'Usa la biometría de tu teléfono para desbloquear tus contraseñas',
-        biometricOnly: true,
-        persistAcrossBackgrounding: true,
-      );
+    if (!_estadoBloqueoCargado) return;
+    if (_estaBloqueado) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'La autenticación está bloqueada temporalmente. Intenta de nuevo más tarde.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
 
-      if (autenticado && mounted) {
+    try {
+      final claveMaestra = await _identidadService
+          .obtenerClaveMaestraBiometrica();
+      if (claveMaestra == null || claveMaestra.isEmpty || !mounted) return;
+
+      EncriptacionService.configurarClaveMaestra(claveMaestra);
+      SesionService.marcarAutenticada();
+      final sesionIniciada = await _iniciarSesionRemota();
+      if (sesionIniciada && mounted) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const PrincipalContrasenas()),
         );
+      } else {
+        SesionService.cerrar();
+        EncriptacionService.limpiarClaveMaestra();
       }
-    } on LocalAuthException catch (e) {
-      debugPrint("Error de autenticación facial: ${e.code}");
-    } catch (e) {
-      debugPrint("Error de autenticación facial: $e");
-    }
+    } on LocalAuthException catch (_) {
+    } catch (_) {}
+  }
+
+  Future<bool> _iniciarSesionRemota() async {
+    final id = await _identidadService.obtenerId();
+    final deviceSecretHash = await _identidadService.obtenerDeviceSecretHash();
+    if (id == null || deviceSecretHash == null) return false;
+
+    return _mysqlService.iniciarSesion(
+      id: id,
+      deviceSecretHash: deviceSecretHash,
+    );
   }
 
   // ============================================================
@@ -151,6 +328,7 @@ class _IngresarPinState extends State<IngresarPin>
   // ============================================================
 
   void _agregarNumero(String numero) {
+    if (!_estadoBloqueoCargado || _estaBloqueado || _verificandoPin) return;
     if (_pinIngresado.length < _longitudPin) {
       setState(() {
         _pinIngresado += numero;
@@ -163,6 +341,7 @@ class _IngresarPinState extends State<IngresarPin>
   }
 
   void _eliminarUltimo() {
+    if (!_estadoBloqueoCargado || _estaBloqueado || _verificandoPin) return;
     if (_pinIngresado.isNotEmpty) {
       setState(() {
         _pinIngresado = _pinIngresado.substring(0, _pinIngresado.length - 1);
@@ -170,13 +349,39 @@ class _IngresarPinState extends State<IngresarPin>
     }
   }
 
-  void _verificarPin() {
-    if (_pinIngresado == _pinCorrecto) {
+  Future<void> _verificarPin() async {
+    if (!_estadoBloqueoCargado || _estaBloqueado || _verificandoPin) return;
+    if (_pinIngresado.length < 4) {
+      _shakeController.forward();
+      return;
+    }
+
+    setState(() => _verificandoPin = true);
+    final pinValido = await _identidadService.validarPin(_pinIngresado);
+
+    if (!pinValido) {
+      await _registrarIntentoFallido();
+      if (!mounted) return;
+      setState(() => _verificandoPin = false);
+      _shakeController.forward();
+      return;
+    }
+
+    if (_tieneReconocimientoFacial) {
+      await _identidadService.prepararClaveMaestraBiometrica();
+    }
+    await _restablecerIntentos();
+    SesionService.marcarAutenticada();
+    final sesionIniciada = await _iniciarSesionRemota();
+    if (sesionIniciada && mounted) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const PrincipalContrasenas()),
       );
     } else {
+      SesionService.cerrar();
+      EncriptacionService.limpiarClaveMaestra();
+      if (mounted) setState(() => _verificandoPin = false);
       _shakeController.forward();
     }
   }
@@ -241,39 +446,76 @@ class _IngresarPinState extends State<IngresarPin>
               ),
             ),
 
+            if (_segundosBloqueo > 0) ...[
+              const SizedBox(height: 18),
+              Text(
+                "Intenta de nuevo en $_segundosBloqueo segundos",
+                style: const TextStyle(color: Colors.redAccent, fontSize: 15),
+              ),
+            ],
+
+            if (!_estadoBloqueoCargado) ...[
+              const SizedBox(height: 24),
+              const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Comprobando el estado de seguridad...',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ] else if (_falloCargaBloqueo) ...[
+              const SizedBox(height: 24),
+              const Text(
+                'No se pudo verificar el estado de seguridad. Intenta de nuevo.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.redAccent),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: _cargarEstadoBloqueo,
+                child: const Text('Reintentar'),
+              ),
+            ],
+
             const SizedBox(height: 60),
 
             // ==================================================
             // TECLADO NUMERICO
             // ==================================================
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
-              child: GridView.count(
-                crossAxisCount: 3,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 15,
-                crossAxisSpacing: 15,
-                childAspectRatio: 1.2,
-                children: [
-                  _botonNumero("1"),
-                  _botonNumero("2"),
-                  _botonNumero("3"),
+            IgnorePointer(
+              ignoring: !_estadoBloqueoCargado || _falloCargaBloqueo,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 40),
+                child: GridView.count(
+                  crossAxisCount: 3,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 15,
+                  crossAxisSpacing: 15,
+                  childAspectRatio: 1.2,
+                  children: [
+                    _botonNumero("1"),
+                    _botonNumero("2"),
+                    _botonNumero("3"),
 
-                  _botonNumero("4"),
-                  _botonNumero("5"),
-                  _botonNumero("6"),
+                    _botonNumero("4"),
+                    _botonNumero("5"),
+                    _botonNumero("6"),
 
-                  _botonNumero("7"),
-                  _botonNumero("8"),
-                  _botonNumero("9"),
+                    _botonNumero("7"),
+                    _botonNumero("8"),
+                    _botonNumero("9"),
 
-                  _botonIcono(Icons.check, _verificarPin),
+                    _botonIcono(Icons.check, _verificarPin),
 
-                  _botonNumero("0"),
+                    _botonNumero("0"),
 
-                  _botonIcono(Icons.backspace_outlined, _eliminarUltimo),
-                ],
+                    _botonIcono(Icons.backspace_outlined, _eliminarUltimo),
+                  ],
+                ),
               ),
             ),
 
@@ -286,7 +528,12 @@ class _IngresarPinState extends State<IngresarPin>
               Column(
                 children: [
                   TextButton.icon(
-                    onPressed: _autenticarConRostro,
+                    onPressed:
+                        !_estadoBloqueoCargado ||
+                            _falloCargaBloqueo ||
+                            _estaBloqueado
+                        ? null
+                        : _autenticarConRostro,
                     icon: Icon(
                       _iconoBiometria,
                       color: Colors.white70,

@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:gestor_contrasenas_mysql/pages/ingresar_pin.dart';
+import '../services/encriptacion_service.dart';
+import '../services/mysql_service.dart';
+import '../services/sesion_service.dart';
 
 class BarraNavegacion extends StatefulWidget {
   final int indexActual;
@@ -188,7 +191,14 @@ class _BarraNavegacionState extends State<BarraNavegacion> {
 
   Widget _botonSalir(BuildContext context) {
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
+        try {
+          await MysqlService().cerrarSesion();
+        } catch (_) {
+          // El cierre local no depende de que el servidor esté disponible.
+        }
+        EncriptacionService.limpiarClaveMaestra();
+        SesionService.cerrar();
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => IngresarPin()),

@@ -1,6 +1,7 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'ingresar_pin.dart';
+import 'registrar.dart';
+import '../services/identidad_service.dart';
 
 class PantallaDeCarga extends StatefulWidget {
   const PantallaDeCarga({super.key});
@@ -47,13 +48,22 @@ class _PantallaDeCargaState extends State<PantallaDeCarga>
       ),
     );
 
-    // Después de 4 segundos, ir a ingreso de PIN
-    Timer(const Duration(seconds: 4), () {
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const IngresarPin()),
-      );
-    });
+    _verificarUsuario();
+  }
+
+  Future<void> _verificarUsuario() async {
+    await Future<void>.delayed(const Duration(seconds: 4));
+    if (!mounted) return;
+
+    final existeUsuario = await IdentidadService().existeUsuario();
+    if (!mounted) return;
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) =>
+            existeUsuario ? const IngresarPin() : const PantallaRegistro(),
+      ),
+    );
   }
 
   @override

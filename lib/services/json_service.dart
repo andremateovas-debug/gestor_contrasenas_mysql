@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'encriptacion_service.dart';
@@ -17,76 +16,47 @@ class JsonService {
   }
 
   Future<void> guardarContrasenas(List contrasenas) async {
-  try {
-    final file = await _localFile;
+    try {
+      final file = await _localFile;
 
-    final jsonEncriptado =
-        EncriptacionService.encriptarJson(contrasenas);
+      final jsonEncriptado = EncriptacionService.encriptarJson(contrasenas);
 
-    print("GUARDANDO CIFRADO:");
-    print(jsonEncriptado);
-
-    final prueba =
-        EncriptacionService.desencriptarJson(jsonEncriptado);
-
-    print("DESCIFRADO ANTES DE GUARDAR:");
-    print(prueba);
-
-    await file.writeAsString(jsonEncriptado);
-
-    print("ARCHIVO GUARDADO:");
-    print(file.path);
-  } catch (e) {
-    print("ERROR AL GUARDAR CONTRASEÑAS: $e");
+      await file.writeAsString(jsonEncriptado);
+    } catch (_) {}
   }
-}
 
   Future<List> leerContrasenas() async {
-  try {
-    final file = await _localFile;
+    try {
+      final file = await _localFile;
 
-    print("================================");
-    print("RUTA DEL ARCHIVO:");
-    print(file.path);
+      if (!await file.exists()) {
+        return [];
+      }
 
-    print("¿EXISTE?");
-    print(await file.exists());
+      var contenidoEncriptado = await file.readAsString();
 
-    if (!await file.exists()) {
-      print("NO EXISTE EL ARCHIVO");
-      print("================================");
+      if (contenidoEncriptado.isEmpty) {
+        return [];
+      }
+
+      if (!contenidoEncriptado.contains(':')) {
+        contenidoEncriptado = EncriptacionService.migrarFormatoAntiguo(
+          contenidoEncriptado,
+        );
+        await file.writeAsString(contenidoEncriptado);
+      }
+
+      final contrasenas = EncriptacionService.desencriptarJson(
+        contenidoEncriptado,
+      );
+
+      return contrasenas;
+    } on CifradoCorruptoException {
+      rethrow;
+    } catch (_) {
       return [];
     }
-
-    final contenidoEncriptado = await file.readAsString();
-
-    print("CONTENIDO CIFRADO:");
-    print(contenidoEncriptado);
-
-    if (contenidoEncriptado.isEmpty) {
-      print("EL ARCHIVO EXISTE PERO ESTÁ VACÍO");
-      print("================================");
-      return [];
-    }
-
-    final contrasenas =
-        EncriptacionService.desencriptarJson(contenidoEncriptado);
-
-    print("CONTRASEÑAS DESCIFRADAS:");
-    print(contrasenas);
-
-    print("CANTIDAD:");
-    print(contrasenas.length);
-
-    print("================================");
-
-    return contrasenas;
-  } catch (e) {
-    print("ERROR AL LEER/DESCIFRAR:");
-    print(e);
-    return [];
   }
-}
 
   /// Agregar una nueva contraseña
   Future<bool> agregarContrasena({
@@ -111,8 +81,7 @@ class JsonService {
       await guardarContrasenas(contrasenas);
 
       return true;
-    } catch (e) {
-      print("Error al agregar contraseña: $e");
+    } catch (_) {
       return false;
     }
   }
@@ -126,16 +95,13 @@ class JsonService {
       final contrasenas = await leerContrasenas();
 
       contrasenas.removeWhere(
-        (item) =>
-            item["titulo"] == titulo &&
-            item["usuario"] == usuario,
+        (item) => item["titulo"] == titulo && item["usuario"] == usuario,
       );
 
       await guardarContrasenas(contrasenas);
 
       return true;
-    } catch (e) {
-      print("Error al eliminar contraseña: $e");
+    } catch (_) {
       return false;
     }
   }
@@ -154,8 +120,7 @@ class JsonService {
 
       final index = contrasenas.indexWhere(
         (item) =>
-            item["titulo"] == tituloViejo &&
-            item["usuario"] == usuarioViejo,
+            item["titulo"] == tituloViejo && item["usuario"] == usuarioViejo,
       );
 
       if (index != -1) {
@@ -166,9 +131,8 @@ class JsonService {
           "sitio_web": sitioWeb,
           "fecha_creacion":
               contrasenas[index]["fecha_creacion"] ??
-                  DateTime.now().toIso8601String(),
-          "fecha_actualizacion":
               DateTime.now().toIso8601String(),
+          "fecha_actualizacion": DateTime.now().toIso8601String(),
         };
 
         await guardarContrasenas(contrasenas);
@@ -177,8 +141,7 @@ class JsonService {
       }
 
       return false;
-    } catch (e) {
-      print("Error al actualizar contraseña: $e");
+    } catch (_) {
       return false;
     }
   }

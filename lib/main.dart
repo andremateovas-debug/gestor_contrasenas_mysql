@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'services/encriptacion_service.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'services/tema_service.dart';
 import 'pages/pantalla_de_carga.dart';
 
-void main() {
-  // PRUEBA DE CIFRADO: llamada añadida antes de iniciar la aplicación.
-  EncriptacionService.prueba();
-  EncriptacionService.mostrarDatosCifrado();
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: '.env');
   runApp(const GestorContrasenasApp());
 }
 

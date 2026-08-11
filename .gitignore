@@ -48,3 +48,9 @@ app.*.map.json
 .env
 
 /dartsviejos/
+
+
+api_contras.php
+
+
+/logs_siteground/
