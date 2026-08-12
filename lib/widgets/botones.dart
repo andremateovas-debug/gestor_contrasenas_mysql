@@ -199,6 +199,7 @@ class _BarraNavegacionState extends State<BarraNavegacion> {
         }
         EncriptacionService.limpiarClaveMaestra();
         SesionService.cerrar();
+        if (!context.mounted) return;
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => IngresarPin()),

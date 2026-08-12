@@ -3,6 +3,17 @@ import 'package:path_provider/path_provider.dart';
 import 'encriptacion_service.dart';
 
 class JsonService {
+  /// Serializa las operaciones de lectura-modificación-escritura sobre
+  /// contras.json para evitar que dos operaciones concurrentes (agregar,
+  /// eliminar, actualizar) lean el mismo estado y se sobrescriban entre sí.
+  static Future<void> _colaOperaciones = Future.value();
+
+  Future<T> _encolar<T>(Future<T> Function() accion) {
+    final resultado = _colaOperaciones.then((_) => accion());
+    _colaOperaciones = resultado.then((_) {}, onError: (_) {});
+    return resultado;
+  }
+
   Future<File> get _localFile async {
     final directory = await getApplicationDocumentsDirectory();
 
@@ -16,13 +27,11 @@ class JsonService {
   }
 
   Future<void> guardarContrasenas(List contrasenas) async {
-    try {
-      final file = await _localFile;
+    final file = await _localFile;
 
-      final jsonEncriptado = EncriptacionService.encriptarJson(contrasenas);
+    final jsonEncriptado = EncriptacionService.encriptarJson(contrasenas);
 
-      await file.writeAsString(jsonEncriptado);
-    } catch (_) {}
+    await file.writeAsString(jsonEncriptado);
   }
 
   Future<List> leerContrasenas() async {
@@ -64,46 +73,50 @@ class JsonService {
     required String usuario,
     required String contrasena,
     required String sitioWeb,
-  }) async {
-    try {
-      final contrasenas = await leerContrasenas();
+  }) {
+    return _encolar(() async {
+      try {
+        final contrasenas = await leerContrasenas();
 
-      final nueva = {
-        "titulo": titulo,
-        "usuario": usuario,
-        "contrasena": contrasena,
-        "sitio_web": sitioWeb,
-        "fecha_creacion": DateTime.now().toIso8601String(),
-      };
+        final nueva = {
+          "titulo": titulo,
+          "usuario": usuario,
+          "contrasena": contrasena,
+          "sitio_web": sitioWeb,
+          "fecha_creacion": DateTime.now().toIso8601String(),
+        };
 
-      contrasenas.add(nueva);
+        contrasenas.add(nueva);
 
-      await guardarContrasenas(contrasenas);
+        await guardarContrasenas(contrasenas);
 
-      return true;
-    } catch (_) {
-      return false;
-    }
+        return true;
+      } catch (_) {
+        return false;
+      }
+    });
   }
 
   /// Eliminar una contraseña
   Future<bool> eliminarContrasena({
     required String titulo,
     required String usuario,
-  }) async {
-    try {
-      final contrasenas = await leerContrasenas();
+  }) {
+    return _encolar(() async {
+      try {
+        final contrasenas = await leerContrasenas();
 
-      contrasenas.removeWhere(
-        (item) => item["titulo"] == titulo && item["usuario"] == usuario,
-      );
+        contrasenas.removeWhere(
+          (item) => item["titulo"] == titulo && item["usuario"] == usuario,
+        );
 
-      await guardarContrasenas(contrasenas);
+        await guardarContrasenas(contrasenas);
 
-      return true;
-    } catch (_) {
-      return false;
-    }
+        return true;
+      } catch (_) {
+        return false;
+      }
+    });
   }
 
   /// Actualizar una contraseña
@@ -114,35 +127,38 @@ class JsonService {
     required String usuarioNuevo,
     required String contrasena,
     required String sitioWeb,
-  }) async {
-    try {
-      final contrasenas = await leerContrasenas();
+  }) {
+    return _encolar(() async {
+      try {
+        final contrasenas = await leerContrasenas();
 
-      final index = contrasenas.indexWhere(
-        (item) =>
-            item["titulo"] == tituloViejo && item["usuario"] == usuarioViejo,
-      );
+        final index = contrasenas.indexWhere(
+          (item) =>
+              item["titulo"] == tituloViejo &&
+              item["usuario"] == usuarioViejo,
+        );
 
-      if (index != -1) {
-        contrasenas[index] = {
-          "titulo": tituloNuevo,
-          "usuario": usuarioNuevo,
-          "contrasena": contrasena,
-          "sitio_web": sitioWeb,
-          "fecha_creacion":
-              contrasenas[index]["fecha_creacion"] ??
-              DateTime.now().toIso8601String(),
-          "fecha_actualizacion": DateTime.now().toIso8601String(),
-        };
+        if (index != -1) {
+          contrasenas[index] = {
+            "titulo": tituloNuevo,
+            "usuario": usuarioNuevo,
+            "contrasena": contrasena,
+            "sitio_web": sitioWeb,
+            "fecha_creacion":
+                contrasenas[index]["fecha_creacion"] ??
+                DateTime.now().toIso8601String(),
+            "fecha_actualizacion": DateTime.now().toIso8601String(),
+          };
 
-        await guardarContrasenas(contrasenas);
+          await guardarContrasenas(contrasenas);
 
-        return true;
+          return true;
+        }
+
+        return false;
+      } catch (_) {
+        return false;
       }
-
-      return false;
-    } catch (_) {
-      return false;
-    }
+    });
   }
 }

@@ -73,168 +73,32 @@ class _PantallaConfiguracionState extends State<PantallaConfiguracion> {
   }
 
   Future<void> _mostrarCambiarPin() async {
-    final pinActualCtrl = TextEditingController();
-    final nuevoPinCtrl = TextEditingController();
-    final confirmarPinCtrl = TextEditingController();
-    final formulario = GlobalKey<FormState>();
-
-    await showDialog<void>(
+    final resultado = await showDialog<Map<String, String>>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Cambiar PIN'),
-          content: Form(
-            key: formulario,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _campoPin(pinActualCtrl, 'PIN actual'),
-                const SizedBox(height: 12),
-                _campoPin(nuevoPinCtrl, 'Nuevo PIN'),
-                const SizedBox(height: 12),
-                _campoPin(confirmarPinCtrl, 'Confirmar nuevo PIN'),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                if (!formulario.currentState!.validate() ||
-                    nuevoPinCtrl.text != confirmarPinCtrl.text) {
-                  _mostrarToast('Los PIN no coinciden.', Colors.redAccent);
-                  return;
-                }
-
-                Navigator.pop(dialogContext);
-                // Diferir el rebuild al siguiente frame, cuando el diálogo
-                // ya terminó de desmontarse
-                WidgetsBinding.instance.addPostFrameCallback((_) async {
-                  if (!mounted) return;
-                  setState(() => _operacionEnCurso = true);
-                  final cambiado = await _identidadService.cambiarPin(
-                    pinActual: pinActualCtrl.text,
-                    nuevoPin: nuevoPinCtrl.text,
-                  );
-                  if (!mounted) return;
-                  setState(() => _operacionEnCurso = false);
-                  _mostrarToast(
-                    cambiado ? 'PIN actualizado.' : 'El PIN actual no es válido.',
-                    cambiado ? Colors.green : Colors.redAccent,
-                  );
-                });
-              },
-              child: const Text('Guardar'),
-            ),
-          ],
-        );
-      },
+      builder: (dialogContext) => const _DialogoCambiarPin(),
     );
-    pinActualCtrl.dispose();
-    nuevoPinCtrl.dispose();
-    confirmarPinCtrl.dispose();
-  }
 
-  Widget _campoPin(TextEditingController controller, String etiqueta) {
-    return TextFormField(
-      controller: controller,
-      obscureText: true,
-      keyboardType: TextInputType.number,
-      maxLength: 6,
-      decoration: InputDecoration(labelText: etiqueta, counterText: ''),
-      validator: (valor) {
-        if (valor == null || !RegExp(r'^\d{4,6}$').hasMatch(valor)) {
-          return 'Usa entre 4 y 6 dígitos';
-        }
-        return null;
-      },
+    if (resultado == null || !mounted) return;
+    setState(() => _operacionEnCurso = true);
+    final cambiado = await _identidadService.cambiarPin(
+      pinActual: resultado['pinActual']!,
+      nuevoPin: resultado['nuevoPin']!,
+    );
+    if (!mounted) return;
+    setState(() => _operacionEnCurso = false);
+    _mostrarToast(
+      cambiado ? 'PIN actualizado.' : 'El PIN actual no es válido.',
+      cambiado ? Colors.green : Colors.redAccent,
     );
   }
 
   Future<bool> _reautenticarParaBorrar() async {
-    final pinController = TextEditingController();
-    String? error;
-    bool validando = false;
-
     final resultado = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Confirma tu PIN'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: pinController,
-                    obscureText: true,
-                    keyboardType: TextInputType.number,
-                    maxLength: 6,
-                    decoration: InputDecoration(
-                      labelText: 'PIN actual',
-                      counterText: '',
-                      errorText: error,
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: validando
-                      ? null
-                      : () => Navigator.pop(dialogContext, false),
-                  child: const Text('Cancelar'),
-                ),
-                FilledButton(
-                  onPressed: validando
-                      ? null
-                      : () async {
-                          if (!RegExp(
-                            r'^\d{4,6}$',
-                          ).hasMatch(pinController.text)) {
-                            setDialogState(
-                              () => error = 'Usa entre 4 y 6 dígitos',
-                            );
-                            return;
-                          }
-
-                          setDialogState(() {
-                            validando = true;
-                            error = null;
-                          });
-                          final valido = await _identidadService.validarPin(
-                            pinController.text,
-                          );
-                          if (!dialogContext.mounted) return;
-                          if (valido) {
-                            Navigator.pop(dialogContext, true);
-                          } else {
-                            setDialogState(() {
-                              validando = false;
-                              error = 'El PIN actual no es válido.';
-                            });
-                          }
-                        },
-                  child: validando
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Continuar'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (dialogContext) =>
+          _DialogoConfirmarPin(identidadService: _identidadService),
     );
-    pinController.dispose();
     return resultado == true;
   }
 
@@ -526,6 +390,192 @@ class _PantallaConfiguracionState extends State<PantallaConfiguracion> {
           ],
         ),
       ),
+    );
+  }
+}
+
+Widget _campoPin(TextEditingController controller, String etiqueta) {
+  return TextFormField(
+    controller: controller,
+    obscureText: true,
+    keyboardType: TextInputType.number,
+    maxLength: 6,
+    decoration: InputDecoration(labelText: etiqueta, counterText: ''),
+    validator: (valor) {
+      if (valor == null || !RegExp(r'^\d{4,6}$').hasMatch(valor)) {
+        return 'Usa entre 4 y 6 dígitos';
+      }
+      return null;
+    },
+  );
+}
+
+/// Diálogo para cambiar el PIN. Los controllers pertenecen a este [State],
+/// por lo que Flutter los destruye solo cuando el diálogo realmente se
+/// desmonta, evitando disponerlos mientras el AlertDialog aún está en su
+/// transición de salida.
+class _DialogoCambiarPin extends StatefulWidget {
+  const _DialogoCambiarPin();
+
+  @override
+  State<_DialogoCambiarPin> createState() => _DialogoCambiarPinState();
+}
+
+class _DialogoCambiarPinState extends State<_DialogoCambiarPin> {
+  late final TextEditingController _pinActualCtrl;
+  late final TextEditingController _nuevoPinCtrl;
+  late final TextEditingController _confirmarPinCtrl;
+  final _formulario = GlobalKey<FormState>();
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _pinActualCtrl = TextEditingController();
+    _nuevoPinCtrl = TextEditingController();
+    _confirmarPinCtrl = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _pinActualCtrl.dispose();
+    _nuevoPinCtrl.dispose();
+    _confirmarPinCtrl.dispose();
+    super.dispose();
+  }
+
+  void _guardar() {
+    if (!_formulario.currentState!.validate() ||
+        _nuevoPinCtrl.text != _confirmarPinCtrl.text) {
+      setState(() => _error = 'Los PIN no coinciden.');
+      return;
+    }
+
+    Navigator.pop(context, {
+      'pinActual': _pinActualCtrl.text,
+      'nuevoPin': _nuevoPinCtrl.text,
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Cambiar PIN'),
+      content: Form(
+        key: _formulario,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _campoPin(_pinActualCtrl, 'PIN actual'),
+            const SizedBox(height: 12),
+            _campoPin(_nuevoPinCtrl, 'Nuevo PIN'),
+            const SizedBox(height: 12),
+            _campoPin(_confirmarPinCtrl, 'Confirmar nuevo PIN'),
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(onPressed: _guardar, child: const Text('Guardar')),
+      ],
+    );
+  }
+}
+
+/// Diálogo de confirmación de PIN antes de borrar datos. El controller y el
+/// estado de validación pertenecen a este [State] para el mismo propósito
+/// que en [_DialogoCambiarPin].
+class _DialogoConfirmarPin extends StatefulWidget {
+  final IdentidadService identidadService;
+
+  const _DialogoConfirmarPin({required this.identidadService});
+
+  @override
+  State<_DialogoConfirmarPin> createState() => _DialogoConfirmarPinState();
+}
+
+class _DialogoConfirmarPinState extends State<_DialogoConfirmarPin> {
+  late final TextEditingController _pinCtrl;
+  String? _error;
+  bool _validando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pinCtrl = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _pinCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _continuar() async {
+    if (!RegExp(r'^\d{4,6}$').hasMatch(_pinCtrl.text)) {
+      setState(() => _error = 'Usa entre 4 y 6 dígitos');
+      return;
+    }
+
+    setState(() {
+      _validando = true;
+      _error = null;
+    });
+    final valido = await widget.identidadService.validarPin(_pinCtrl.text);
+    if (!mounted) return;
+    if (valido) {
+      Navigator.pop(context, true);
+    } else {
+      setState(() {
+        _validando = false;
+        _error = 'El PIN actual no es válido.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Confirma tu PIN'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _pinCtrl,
+            obscureText: true,
+            keyboardType: TextInputType.number,
+            maxLength: 6,
+            decoration: InputDecoration(
+              labelText: 'PIN actual',
+              counterText: '',
+              errorText: _error,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _validando ? null : () => Navigator.pop(context, false),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _validando ? null : _continuar,
+          child: _validando
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Continuar'),
+        ),
+      ],
     );
   }
 }

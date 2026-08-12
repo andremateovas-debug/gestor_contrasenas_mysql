@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
@@ -14,6 +15,18 @@ import 'package:uuid/uuid.dart';
 
 import 'encriptacion_service.dart';
 import 'biometria_service.dart';
+
+/// Deriva una clave AES-256 a partir de un PIN usando PBKDF2-HMAC-SHA256.
+///
+/// Es una función top-level para poder ejecutarse en un isolate separado
+/// mediante [Isolate.run], ya que 100,000 iteraciones bloquean el UI isolate.
+Uint8List _derivarClaveBytes(String pin, Uint8List salt) {
+  final derivador = PBKDF2KeyDerivator(HMac(SHA256Digest(), 64))
+    ..init(Pbkdf2Parameters(salt, 100000, 32));
+  final clave = Uint8List(32);
+  derivador.deriveKey(Uint8List.fromList(utf8.encode(pin)), 0, clave, 0);
+  return clave;
+}
 
 class IdentidadService {
   static const String _claveRegistroCompleto = 'registroCompleto';
@@ -42,12 +55,11 @@ class IdentidadService {
     return File('${directorioVault.path}/usuario.json');
   }
 
-  encrypt.Key _derivarClave(String pin, Uint8List salt) {
-    final derivador = PBKDF2KeyDerivator(HMac(SHA256Digest(), 64))
-      ..init(Pbkdf2Parameters(salt, 100000, 32));
-    final clave = Uint8List(32);
-    derivador.deriveKey(Uint8List.fromList(utf8.encode(pin)), 0, clave, 0);
-    return encrypt.Key(clave);
+  /// Deriva la clave en un isolate separado para no bloquear el UI isolate.
+  /// Produce exactamente el mismo resultado que la derivación síncrona.
+  Future<encrypt.Key> _derivarClave(String pin, Uint8List salt) async {
+    final bytes = await Isolate.run(() => _derivarClaveBytes(pin, salt));
+    return encrypt.Key(bytes);
   }
 
   encrypt.Key _derivarClaveAntigua(String pin) {
@@ -118,7 +130,7 @@ class IdentidadService {
         .convert(utf8.encode(deviceSecret))
         .toString();
     final saltPin = encrypt.IV.fromSecureRandom(16);
-    final claveDerivada = _derivarClave(pin, saltPin.bytes);
+    final claveDerivada = await _derivarClave(pin, saltPin.bytes);
     final claveMaestraCifrada = _cifrarClaveMaestra(
       claveMaestra.base64,
       claveDerivada,
@@ -189,9 +201,11 @@ class IdentidadService {
     }
   }
 
-  Future<String?> obtenerClaveMaestraBiometrica() async {
+  Future<ResultadoBiometrico> obtenerClaveMaestraBiometrica() async {
     final blob = await _almacenamientoSeguro.read(key: _claveMaestraBiometrica);
-    if (blob == null || blob.isEmpty) return null;
+    if (blob == null || blob.isEmpty) {
+      return const ResultadoBiometrico.fallo(EstadoBiometria.noConfigurado);
+    }
     return BiometriaService.desenvolverClaveMaestra(blob);
   }
 
@@ -208,7 +222,7 @@ class IdentidadService {
     }
 
     final claveDerivada = tieneFormatoNuevo
-        ? _derivarClave(pin, encrypt.IV.fromBase64(saltCodificado!).bytes)
+        ? await _derivarClave(pin, encrypt.IV.fromBase64(saltCodificado!).bytes)
         : _derivarClaveAntigua(pin);
     final claveMaestraPlano = tieneFormatoNuevo
         ? _descifrarClaveMaestra(claveMaestraCifrada, claveDerivada)
@@ -220,7 +234,7 @@ class IdentidadService {
 
     if (!tieneFormatoNuevo) {
       final nuevoSalt = encrypt.IV.fromSecureRandom(16);
-      final nuevaClave = _derivarClave(pin, nuevoSalt.bytes);
+      final nuevaClave = await _derivarClave(pin, nuevoSalt.bytes);
       usuario
         ..remove('ivUsuario')
         ..['saltPin'] = nuevoSalt.base64
@@ -241,7 +255,7 @@ class IdentidadService {
     try {
       final claveMaestraPlano = await _obtenerClaveMaestra(pinActual);
       final nuevoSalt = encrypt.IV.fromSecureRandom(16);
-      final nuevaClave = _derivarClave(nuevoPin, nuevoSalt.bytes);
+      final nuevaClave = await _derivarClave(nuevoPin, nuevoSalt.bytes);
       final usuario = await _leerUsuario();
       if (usuario == null) return false;
 

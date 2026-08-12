@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
+import '../services/biometria_service.dart';
 import '../services/encriptacion_service.dart';
 import '../services/identidad_service.dart';
 import '../services/mysql_service.dart';
@@ -291,25 +292,52 @@ class _IngresarPinState extends State<IngresarPin>
       return;
     }
 
-    try {
-      final claveMaestra = await _identidadService
-          .obtenerClaveMaestraBiometrica();
-      if (claveMaestra == null || claveMaestra.isEmpty || !mounted) return;
+    final resultado = await _identidadService.obtenerClaveMaestraBiometrica();
+    if (!mounted) return;
 
-      EncriptacionService.configurarClaveMaestra(claveMaestra);
-      SesionService.marcarAutenticada();
-      final sesionIniciada = await _iniciarSesionRemota();
-      if (sesionIniciada && mounted) {
-        Navigator.pushReplacement(
+    if (!resultado.esExito) {
+      final mensaje = _mensajeParaEstadoBiometrico(resultado.estado);
+      if (mensaje != null) {
+        ScaffoldMessenger.of(
           context,
-          MaterialPageRoute(builder: (_) => const PrincipalContrasenas()),
-        );
-      } else {
-        SesionService.cerrar();
-        EncriptacionService.limpiarClaveMaestra();
+        ).showSnackBar(SnackBar(content: Text(mensaje)));
       }
-    } on LocalAuthException catch (_) {
-    } catch (_) {}
+      return;
+    }
+
+    EncriptacionService.configurarClaveMaestra(resultado.claveMaestra!);
+    SesionService.marcarAutenticada();
+    final sesionIniciada = await _iniciarSesionRemota();
+    if (sesionIniciada && mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const PrincipalContrasenas()),
+      );
+    } else {
+      SesionService.cerrar();
+      EncriptacionService.limpiarClaveMaestra();
+    }
+  }
+
+  /// Devuelve el mensaje a mostrar para cada estado de fallo biométrico, o
+  /// `null` cuando el estado no requiere avisar al usuario (p. ej. una
+  /// cancelación explícita del propio usuario).
+  String? _mensajeParaEstadoBiometrico(EstadoBiometria estado) {
+    switch (estado) {
+      case EstadoBiometria.cancelado:
+        return null;
+      case EstadoBiometria.noEnrolado:
+        return 'No tienes biometría registrada en este dispositivo.';
+      case EstadoBiometria.noDisponible:
+        return 'La biometría no está disponible en este dispositivo.';
+      case EstadoBiometria.bloqueado:
+        return 'Biometría bloqueada temporalmente. Usa tu PIN.';
+      case EstadoBiometria.noConfigurado:
+        return null;
+      case EstadoBiometria.error:
+      case EstadoBiometria.exito:
+        return 'No se pudo completar la autenticación biométrica.';
+    }
   }
 
   Future<bool> _iniciarSesionRemota() async {
@@ -381,7 +409,8 @@ class _IngresarPinState extends State<IngresarPin>
     } else {
       SesionService.cerrar();
       EncriptacionService.limpiarClaveMaestra();
-      if (mounted) setState(() => _verificandoPin = false);
+      if (!mounted) return;
+      setState(() => _verificandoPin = false);
       _shakeController.forward();
     }
   }
@@ -446,6 +475,17 @@ class _IngresarPinState extends State<IngresarPin>
               ),
             ),
 
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: _verificandoPin
+                  ? const Padding(
+                      key: ValueKey('validando'),
+                      padding: EdgeInsets.only(top: 18),
+                      child: _IndicadorValidando(),
+                    )
+                  : const SizedBox.shrink(key: ValueKey('sin-validar')),
+            ),
+
             if (_segundosBloqueo > 0) ...[
               const SizedBox(height: 18),
               Text(
@@ -486,7 +526,8 @@ class _IngresarPinState extends State<IngresarPin>
             // TECLADO NUMERICO
             // ==================================================
             IgnorePointer(
-              ignoring: !_estadoBloqueoCargado || _falloCargaBloqueo,
+              ignoring:
+                  !_estadoBloqueoCargado || _falloCargaBloqueo || _verificandoPin,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 40),
                 child: GridView.count(
@@ -602,6 +643,50 @@ class _IngresarPinState extends State<IngresarPin>
           child: Center(child: Icon(icono, color: Colors.white70, size: 28)),
         ),
       ),
+    );
+  }
+}
+
+/// Indicador "Validando..." animado, visible solo mientras se verifica el
+/// PIN en el isolate de PBKDF2. Los puntos ciclan con un [AnimationController]
+/// propio; no bloquea ni depende de la derivación de la clave.
+class _IndicadorValidando extends StatefulWidget {
+  const _IndicadorValidando();
+
+  @override
+  State<_IndicadorValidando> createState() => _IndicadorValidandoState();
+}
+
+class _IndicadorValidandoState extends State<_IndicadorValidando>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final numeroPuntos = 1 + (_controller.value * 3).floor() % 3;
+        return Text(
+          "Validando${'.' * numeroPuntos}",
+          style: const TextStyle(color: Colors.white70, fontSize: 15),
+        );
+      },
     );
   }
 }

@@ -153,7 +153,19 @@ class MainActivity : FlutterFragmentActivity() {
 				}
 
 				override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-					result.error("BIOMETRIA_CANCELADA", "La autenticación biométrica no fue completada", null)
+					val codigo = when (errorCode) {
+						BiometricPrompt.ERROR_USER_CANCELED,
+						BiometricPrompt.ERROR_NEGATIVE_BUTTON,
+						BiometricPrompt.ERROR_CANCELED -> "BIOMETRIA_CANCELADA"
+						BiometricPrompt.ERROR_NO_BIOMETRICS -> "BIOMETRIA_NO_ENROLADA"
+						BiometricPrompt.ERROR_HW_NOT_PRESENT,
+						BiometricPrompt.ERROR_HW_UNAVAILABLE,
+						BiometricPrompt.ERROR_NO_DEVICE_CREDENTIAL -> "BIOMETRIA_NO_DISPONIBLE"
+						BiometricPrompt.ERROR_LOCKOUT,
+						BiometricPrompt.ERROR_LOCKOUT_PERMANENT -> "BIOMETRIA_BLOQUEADA"
+						else -> "BIOMETRIA_ERROR"
+					}
+					result.error(codigo, errString.toString(), null)
 				}
 
 				override fun onAuthenticationFailed() {
